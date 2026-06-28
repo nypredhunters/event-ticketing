@@ -1,0 +1,13 @@
+# Netlify build/deploy config
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# Friendly URLs for the function endpoints (optional; the /.netlify/functions/* paths also work)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"

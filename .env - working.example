@@ -1,0 +1,21 @@
+# ---- Copy these into Netlify > Site settings > Environment variables ----
+# (Do NOT commit real values to git.)
+
+# Default event slug (matches the 'slug' column in your DB)
+DEFAULT_EVENT_SLUG=NY Pred Hunters
+
+# Supabase (Project settings > API)
+SUPABASE_URL=https://ziqotibsoghiobinwdrb.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppcW90aWJzb2doaW9iaW53ZHJiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjY1Nzk2OSwiZXhwIjoyMDk4MjMzOTY5fQ.ZqQ11DGxMBvlUHTOGTJnq6kG_Rjssjy0Xr6JRU5P9Tg   # server-side only, keep secret
+
+# PayPal (developer.paypal.com > Apps & Credentials)
+PAYPAL_ENV=sandbox                 # 'sandbox' for testing, 'live' when ready
+PAYPAL_CLIENT_ID=ATdmMjdj95PLuf20FD2BNmmZU5tl5-JNNJwRH4-G_czWENV_U4ESIpr_JNm7fgYHe_8aOUrx5Wm3ty4n
+PAYPAL_CLIENT_SECRET=EJXaEDM7c2XCpSxxbzeMoQrWiIc05lgID4KZGBx56rU9IuEue9zpaZvvmxFou-2SQgH0h-ESbqyI4H7i
+
+# Resend email (resend.com > API Keys). FROM must be a verified domain/sender.
+RESEND_API_KEY=re_CvWF3E8J_BKs98iMFdhE1WEYNxG4yM7Aw
+EMAIL_FROM=Tickets <tickets@nypredhunters.com>
+
+# Admin/door-scanner password — make this long and random
+ADMIeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppcW90aWJzb2doaW9iaW53ZHJiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjY1Nzk2OSwiZXhwIjoyMDk4MjMzOTY5fQ.ZqQ11DGxMBvlUHTOGTJnq6kG_Rjssjy0Xr6JRU5P9TgN_TOKEN=asdfghjklmnbvcxz12345678900987654321

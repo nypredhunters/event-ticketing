@@ -1,0 +1,11 @@
+{
+  "name": "event-ticketing",
+  "version": "1.0.0",
+  "description": "Paid event ticketing on Netlify: PayPal/Venmo checkout, QR + PDF e-tickets, inventory tracking, door scanner, and an admin sales dashboard.",
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "pdfkit": "^0.15.0",
+    "qrcode": "^1.5.3"
+  }
+}
