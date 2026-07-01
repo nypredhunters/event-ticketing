@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Door Scanner</title>
+<script src="config.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin:0; background:#10101a; color:#fff; text-align:center; }
+  header { padding:14px; font-weight:700; }
+  #reader { width:100%; max-width:420px; margin:0 auto; }
+  .gate { max-width:320px; margin:60px auto; }
+  input { width:100%; padding:12px; border-radius:10px; border:0; font-size:15px; }
+  button { background:#3a86ff; color:#fff; border:0; padding:12px 16px; border-radius:10px;
+           font-size:15px; margin-top:10px; cursor:pointer; }
+  #result { max-width:420px; margin:16px auto; padding:22px; border-radius:14px; font-size:20px; font-weight:700;
+            display:none; }
+  #result.valid { background:#0a7d3c; }
+  #result.already_used { background:#e67e22; }
+  #result.not_found { background:#c0392b; }
+  #result small { display:block; font-weight:400; font-size:14px; margin-top:6px; opacity:.9; }
+  .manual { max-width:420px; margin:14px auto; }
+</style>
+</head>
+<body>
+<header>🎟️ Door Scanner</header>
+
+<div id="gate" class="gate">
+  <input id="token" type="password" placeholder="Admin token" />
+  <button onclick="start()">Start scanning</button>
+</div>
+
+<div id="app" style="display:none">
+  <div id="reader"></div>
+  <div id="result"></div>
+  <div class="manual">
+    <input id="manual" placeholder="…or type a ticket code" />
+    <button onclick="check(document.getElementById('manual').value)">Check</button>
+  </div>
+</div>
+
+<script>
+let TOKEN = '';
+let busy = false, lastCode = '', lastTime = 0;
+
+function start(){
+  TOKEN = document.getElementById('token').value.trim();
+  if(!TOKEN) return;
+  document.getElementById('gate').style.display='none';
+  document.getElementById('app').style.display='block';
+  const scanner = new Html5Qrcode('reader');
+  scanner.start({ facingMode:'environment' }, { fps:10, qrbox:240 }, onScan, ()=>{});
+}
+
+function onScan(text){
+  const now = Date.now();
+  if (text === lastCode && now - lastTime < 3000) return; // debounce repeat reads
+  lastCode = text; lastTime = now;
+  check(text);
+}
+
+async function check(code){
+  code = (code||'').trim();
+  if(!code || busy) return;
+  busy = true;
+  try {
+    const r = await fetch('/.netlify/functions/validate-ticket', {
+      method:'POST', headers:{'Content-Type':'application/json','x-admin-token':TOKEN},
+      body: JSON.stringify({ code })
+    });
+    const d = await r.json();
+    show(d);
+  } catch { show({ result:'not_found', error:'Network error' }); }
+  finally { setTimeout(()=>busy=false, 800); }
+}
+
+function show(d){
+  const el = document.getElementById('result');
+  el.className = d.result || 'not_found';
+  el.style.display='block';
+  if (d.result==='valid')      el.innerHTML = `✓ ADMIT<small>${d.holder||''} — ${d.code}</small>`;
+  else if (d.result==='already_used') el.innerHTML = `⚠ ALREADY SCANNED<small>${d.holder||''} · ${d.at?new Date(d.at).toLocaleTimeString():''}</small>`;
+  else el.innerHTML = `✗ INVALID TICKET<small>${d.code||''}</small>`;
+  if (navigator.vibrate) navigator.vibrate(d.result==='valid'?80:[60,40,60]);
+}
+</script>
+</body>
+</html>

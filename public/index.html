@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Get Tickets</title>
+<script src="config.js"></script>
+<style>
+  :root { --accent:#1a1a2e; --good:#0a7d3c; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         margin:0; background:#f4f5f8; color:#1a1a2e; }
+  .card { max-width:480px; margin:32px auto; background:#fff; border-radius:16px;
+          box-shadow:0 6px 30px rgba(0,0,0,.08); padding:28px; }
+  h1 { margin:0 0 4px; font-size:24px; }
+  .meta { color:#666; font-size:14px; margin-bottom:18px; }
+  .seats { font-size:14px; font-weight:600; }
+  .seats.low { color:#c0392b; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 4px; }
+  input, select { width:100%; padding:11px 12px; border:1px solid #d6d8e0; border-radius:10px;
+                  font-size:15px; }
+  .row { display:flex; gap:12px; }
+  .row > div { flex:1; }
+  .total { margin:18px 0 8px; font-size:18px; font-weight:700; }
+  #paypal-buttons { margin-top:10px; }
+  .note { font-size:12px; color:#888; margin-top:14px; line-height:1.5; }
+  #status { margin-top:14px; padding:12px; border-radius:10px; font-size:14px; display:none; }
+  #status.ok { background:#e7f7ee; color:var(--good); display:block; }
+  #status.err { background:#fdecea; color:#c0392b; display:block; }
+  .soldout { text-align:center; color:#c0392b; font-weight:700; font-size:18px; padding:20px 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="loading">Loading event…</div>
+  <div id="event" style="display:none">
+    <h1 id="ev-name"></h1>
+    <div class="meta"><span id="ev-when"></span> · <span id="ev-where"></span></div>
+    <div class="seats" id="ev-seats"></div>
+
+    <div id="form">
+      <div class="row">
+        <div>
+          <label for="qty">Quantity</label>
+          <select id="qty"></select>
+        </div>
+        <div>
+          <label for="price">Price each</label>
+          <input id="price" readonly />
+        </div>
+      </div>
+      <label for="name">Full name</label>
+      <input id="name" placeholder="Jane Doe" autocomplete="name" />
+      <label for="email">Email (your tickets are sent here)</label>
+      <input id="email" type="email" placeholder="jane@email.com" autocomplete="email" />
+
+      <div class="total">Total: <span id="total"></span></div>
+      <div id="paypal-buttons"></div>
+      <div class="note">Pay with PayPal, a card, or <b>Venmo</b>. Your PDF ticket with a
+        scannable QR code is emailed instantly after payment.</div>
+      <div id="status"></div>
+    </div>
+  </div>
+  <div id="sold-out" class="soldout" style="display:none">Sorry, this event is sold out.</div>
+</div>
+
+<script>
+const C = window.TICKETING_CONFIG;
+let EV = null;
+
+const fmt = (cents, cur) => new Intl.NumberFormat('en-US',{style:'currency',currency:cur}).format(cents/100);
+const $ = (id) => document.getElementById(id);
+
+function setStatus(msg, ok) {
+  const s = $('status'); s.textContent = msg; s.className = ok ? 'ok' : 'err';
+}
+function currentQty(){ return parseInt($('qty').value,10) || 1; }
+function refreshTotal(){ $('total').textContent = fmt(EV.price_cents*currentQty(), EV.currency); }
+
+async function load() {
+  const r = await fetch(`/.netlify/functions/inventory?slug=${encodeURIComponent(C.EVENT_SLUG)}`);
+  EV = await r.json();
+  if (!r.ok) { $('loading').textContent = EV.error || 'Could not load event.'; return; }
+
+  $('loading').style.display = 'none';
+  if (EV.sold_out) { $('sold-out').style.display = 'block'; document.getElementById('event').style.display='block'; $('form').style.display='none'; $('ev-name').textContent=EV.name; return; }
+  $('event').style.display = 'block';
+
+  $('ev-name').textContent = EV.name;
+  $('ev-when').textContent = EV.event_date ? new Date(EV.event_date).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}) : '';
+  $('ev-where').textContent = EV.venue || '';
+  const seats = $('ev-seats');
+  seats.textContent = `${EV.seats_remaining} seats remaining`;
+  if (EV.seats_remaining <= 10) seats.classList.add('low');
+
+  const maxQ = Math.min(10, EV.seats_remaining);
+  const qsel = $('qty');
+  for (let i=1;i<=maxQ;i++){ const o=document.createElement('option'); o.value=i; o.textContent=i; qsel.appendChild(o); }
+  $('price').value = fmt(EV.price_cents, EV.currency);
+  refreshTotal();
+  qsel.addEventListener('change', refreshTotal);
+
+  loadPayPal();
+}
+
+function validBuyer() {
+  const name = $('name').value.trim();
+  const email = $('email').value.trim();
+  if (!name) { setStatus('Please enter your name.', false); return null; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setStatus('Please enter a valid email.', false); return null; }
+  return { name, email };
+}
+
+function loadPayPal() {
+  const s = document.createElement('script');
+  // enable-funding=venmo turns on the Venmo button (US, eligible accounts)
+  s.src = `https://www.paypal.com/sdk/js?client-id=${C.PAYPAL_CLIENT_ID}&currency=${EV.currency}&enable-funding=venmo`;
+  s.onload = renderButtons;
+  document.head.appendChild(s);
+}
+
+function renderButtons() {
+  paypal.Buttons({
+    onClick: (data, actions) => {
+      const b = validBuyer();
+      return b ? actions.resolve() : actions.reject();
+    },
+    createOrder: async () => {
+      const r = await fetch('/.netlify/functions/create-order', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ slug: C.EVENT_SLUG, quantity: currentQty() })
+      });
+      const d = await r.json();
+      if (!r.ok) { setStatus(d.error || 'Could not start checkout.', false); throw new Error(d.error); }
+      return d.orderID;
+    },
+    onApprove: async (data) => {
+      const b = validBuyer();
+      setStatus('Confirming payment and issuing your ticket…', true);
+      const r = await fetch('/.netlify/functions/capture-order', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ slug: C.EVENT_SLUG, orderID: data.orderID, buyer_name: b.name, buyer_email: b.email })
+      });
+      const d = await r.json();
+      if (!r.ok) { setStatus(d.error || 'Something went wrong.', false); return; }
+      if (d.emailed === false) setStatus('Paid! Ticket created, but the email didn’t send — contact the organizer with order confirmation.', true);
+      else setStatus('Success! Check your email for your ticket(s). 🎟️', true);
+      $('paypal-buttons').style.display = 'none';
+    },
+    onError: () => setStatus('Payment error. No charge was made — please try again.', false),
+  }).render('#paypal-buttons');
+}
+
+load();
+</script>
+</body>
+</html>

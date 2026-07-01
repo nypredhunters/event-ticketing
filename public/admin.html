@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ticket Sales — Admin</title>
+<script src="config.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin:0; background:#f4f5f8; color:#1a1a2e; }
+  header { background:#1a1a2e; color:#fff; padding:16px 24px; font-size:18px; font-weight:700; }
+  .wrap { max-width:980px; margin:24px auto; padding:0 16px; }
+  .gate { max-width:360px; margin:60px auto; background:#fff; padding:24px; border-radius:14px;
+          box-shadow:0 6px 30px rgba(0,0,0,.08); }
+  input { width:100%; padding:11px; border:1px solid #d6d8e0; border-radius:10px; font-size:15px; }
+  button { background:#1a1a2e; color:#fff; border:0; padding:11px 16px; border-radius:10px;
+           font-size:15px; cursor:pointer; margin-top:12px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:18px 0; }
+  .stat { background:#fff; border-radius:14px; padding:16px; box-shadow:0 4px 18px rgba(0,0,0,.06); }
+  .stat .n { font-size:26px; font-weight:800; }
+  .stat .l { font-size:12px; color:#777; text-transform:uppercase; letter-spacing:.5px; }
+  .bar { height:10px; background:#e6e8ef; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .bar > span { display:block; height:100%; background:#0a7d3c; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:14px; overflow:hidden;
+          box-shadow:0 4px 18px rgba(0,0,0,.06); }
+  th, td { text-align:left; padding:10px 14px; font-size:14px; border-bottom:1px solid #eef0f4; }
+  th { background:#fafbfc; font-size:12px; text-transform:uppercase; color:#888; }
+  .err { color:#c0392b; margin-top:8px; }
+  .links a { color:#1a1a2e; font-size:13px; margin-right:14px; }
+  .refresh { float:right; background:#fff; color:#1a1a2e; border:1px solid #d6d8e0; }
+</style>
+</head>
+<body>
+<header>🎟️ Ticket Sales Dashboard</header>
+
+<div id="gate" class="gate">
+  <label>Admin token</label>
+  <input id="token" type="password" placeholder="Enter admin token" />
+  <button onclick="enter()">View dashboard</button>
+  <div id="gate-err" class="err"></div>
+</div>
+
+<div id="dash" class="wrap" style="display:none">
+  <button class="refresh" onclick="load()">↻ Refresh</button>
+  <h2 id="ev-name" style="margin:6px 0"></h2>
+  <div class="links">
+    <a id="buy-link" target="_blank">Open purchase page ↗</a>
+    <a href="scan.html" target="_blank">Open door scanner ↗</a>
+  </div>
+  <div class="cards" id="cards"></div>
+  <h3>Buyers</h3>
+  <table>
+    <thead><tr><th>Name</th><th>Email</th><th>Qty</th><th>Paid</th><th>Status</th><th>When</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<script>
+const C = window.TICKETING_CONFIG;
+let TOKEN = '';
+const fmt = (c,cur='USD') => new Intl.NumberFormat('en-US',{style:'currency',currency:cur}).format(c/100);
+
+function enter(){ TOKEN = document.getElementById('token').value.trim(); load(true); }
+
+async function load(fromGate) {
+  const r = await fetch(`/.netlify/functions/admin-data?slug=${encodeURIComponent(C.EVENT_SLUG)}`, {
+    headers: { 'x-admin-token': TOKEN }
+  });
+  if (r.status === 401) { if (fromGate) document.getElementById('gate-err').textContent='Wrong token.'; return; }
+  const d = await r.json();
+  if (!r.ok) { document.getElementById('gate-err').textContent = d.error || 'Error'; return; }
+
+  document.getElementById('gate').style.display='none';
+  document.getElementById('dash').style.display='block';
+
+  const e = d.event;
+  document.getElementById('ev-name').textContent = e.name;
+  document.getElementById('buy-link').href = 'index.html';
+  const pct = e.total_seats ? Math.round(e.seats_sold/e.total_seats*100) : 0;
+  document.getElementById('cards').innerHTML = `
+    <div class="stat"><div class="n">${e.seats_sold}</div><div class="l">Tickets sold</div>
+      <div class="bar"><span style="width:${pct}%"></span></div></div>
+    <div class="stat"><div class="n">${e.seats_remaining}</div><div class="l">Seats remaining</div></div>
+    <div class="stat"><div class="n">${e.total_seats}</div><div class="l">Total capacity</div></div>
+    <div class="stat"><div class="n">${fmt(e.revenue_cents,e.currency)}</div><div class="l">Revenue</div></div>
+    <div class="stat"><div class="n">${e.checked_in_count}</div><div class="l">Checked in</div></div>`;
+
+  document.getElementById('rows').innerHTML = (d.orders||[]).map(o => `
+    <tr><td>${o.buyer_name||'—'}</td><td>${o.buyer_email}</td><td>${o.quantity}</td>
+        <td>${fmt(o.amount_cents,o.currency)}</td><td>${o.payment_status}</td>
+        <td>${new Date(o.created_at).toLocaleString('en-US',{dateStyle:'short',timeStyle:'short'})}</td></tr>
+  `).join('') || '<tr><td colspan="6" style="color:#999">No sales yet.</td></tr>';
+}
+</script>
+</body>
+</html>
